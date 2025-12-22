@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Weather Dashboard</title>
+
+    <!-- Weather Icons -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.10/css/weather-icons.min.css">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="default">
+
+<!-- 🎥 Dynamic Background -->
+<div id="bgContainer" class="bg-container">
+    <canvas id="skyCanvas" class="sky-canvas"></canvas>
+    <video autoplay muted loop id="bgVideo" class="bg-video hidden">
+        <source src="" type="video/mp4">
+    </video>
+</div>
+
+<div class="container">
+    <!-- Header -->
+    <header class="header">
+        <h1>Weather Dashboard</h1>
+        <button class="btn-theme" onclick="toggleDark()" title="Toggle Dark Mode">🌓</button>
+    </header>
+
+    <!-- Search Bar -->
+    <div class="search-section">
+        <div class="search-box">
+            <input type="text" id="city" placeholder="Search for a city..." />
+            <button class="btn-search" onclick="getWeather()">🔍 Search</button>
+        </div>
+        <button class="btn-location" onclick="getLocationWeather()">📍 My Location</button>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loader" class="loader hidden"></div>
+
+    <!-- Current Weather Card -->
+    <div id="current-weather" class="weather-main hidden">
+        <div class="weather-header">
+            <div class="location-info">
+                <h2 id="location"></h2>
+                <p id="date-time"></p>
+            </div>
+            <i id="weatherIcon" class="wi wi-day-sunny"></i>
+        </div>
+
+        <div class="temperature-section">
+            <div class="temp-display">
+                <span id="temp" class="temperature"></span>
+                <span class="temp-unit">°C</span>
+            </div>
+            <p id="condition" class="condition"></p>
+        </div>
+
+        <div class="weather-details">
+            <div class="detail-item">
+                <span class="detail-icon">💧</span>
+                <span class="detail-label">Humidity</span>
+                <span id="humidity" class="detail-value"></span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-icon">🌬</span>
+                <span class="detail-label">Wind</span>
+                <span id="wind" class="detail-value"></span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-icon">🔝</span>
+                <span class="detail-label">Pressure</span>
+                <span id="pressure" class="detail-value"></span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-icon">👁</span>
+                <span class="detail-label">Visibility</span>
+                <span id="visibility" class="detail-value"></span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-icon">🌫</span>
+                <span class="detail-label">Feels Like</span>
+                <span id="feels-like" class="detail-value"></span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-icon">☀</span>
+                <span class="detail-label">UV Index</span>
+                <span id="uv-index" class="detail-value"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5-Day Forecast -->
+    <div id="forecast-section" class="forecast-section hidden">
+        <h3>5-Day Forecast</h3>
+        <div id="forecast" class="forecast-grid"></div>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error" class="error-message hidden"></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
