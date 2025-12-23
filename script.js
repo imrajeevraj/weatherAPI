@@ -1,17 +1,39 @@
+/* ============================================
+   WEATHER DASHBOARD - ADVANCED JAVASCRIPT
+   ============================================ */
+
 const apiKey = "4ae642197e3594010ce00db1b7ff8402";
 let currentWeatherData = null;
 let sunriseTime = null;
 let sunsetTime = null;
 
-// Auto-detect location on page load
+/* ============================================
+   INITIALIZATION
+   ============================================ */
+
+// Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
-    showLoader(true);
-    getLocationWeather();
+    initializeTheme();
     initializeBackground();
     updateBackgroundLoop();
+    getLocationWeather();
 });
 
-/* 🌍 Get Weather by City */
+// Initialize theme from localStorage
+function initializeTheme() {
+    const darkModePreference = localStorage.getItem("darkMode");
+    if (darkModePreference === "true") {
+        document.body.classList.add("dark", "night-mode");
+    } else {
+        applyAdaptiveTheme();
+    }
+}
+
+/* ============================================
+   WEATHER FETCHING FUNCTIONS
+   ============================================ */
+
+// Get weather by city name
 function getWeather() {
     const city = document.getElementById("city").value.trim();
     if (!city) {
@@ -33,6 +55,7 @@ function getWeather() {
             getForecast(data.coord.lat, data.coord.lon);
             getSunriseSunset(data.coord.lat, data.coord.lon);
             updateDynamicBackground();
+            document.getElementById("current-weather").classList.remove("hidden");
         })
         .catch(err => {
             showError(err.message);
@@ -42,18 +65,19 @@ function getWeather() {
         .finally(() => showLoader(false));
 }
 
-/* 📍 Get Weather by Location */
+// Get weather by geolocation
 function getLocationWeather() {
     if (!navigator.geolocation) {
-        showError("Geolocation not supported");
+        showError("Geolocation not supported in your browser");
         return;
     }
+
+    showLoader(true);
+    clearError();
 
     navigator.geolocation.getCurrentPosition(
         pos => {
             const { latitude, longitude } = pos.coords;
-            showLoader(true);
-            clearError();
 
             fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`)
                 .then(res => res.json())
@@ -65,62 +89,142 @@ function getLocationWeather() {
                     getSunriseSunset(latitude, longitude);
                     updateDynamicBackground();
                     document.getElementById("city").value = data.name;
+                    document.getElementById("current-weather").classList.remove("hidden");
                 })
-                .catch(err => showError("Unable to fetch weather"))
+                .catch(err => showError("Unable to fetch weather data"))
                 .finally(() => showLoader(false));
         },
         error => {
-            showError("Unable to access location. Please enable geolocation.");
+            showError("Unable to access your location. Please enable geolocation.");
             showLoader(false);
         }
     );
 }
 
-/* 🌅 Get Sunrise and Sunset Times */
+// Get sunrise and sunset times
 function getSunriseSunset(lat, lon) {
     fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`)
         .then(res => res.json())
         .then(data => {
             sunriseTime = new Date(data.sys.sunrise * 1000);
             sunsetTime = new Date(data.sys.sunset * 1000);
+            
+            // Update UI with sunrise/sunset times
+            const sunriseStr = sunriseTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+            const sunsetStr = sunsetTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+            
+            document.getElementById("sunrise").textContent = sunriseStr;
+            document.getElementById("sunset").textContent = sunsetStr;
+            
+            // Update theme based on sunrise/sunset
+            applyAdaptiveTheme();
         });
 }
 
-/* 🔄 Update Current Weather UI */
+/* ============================================
+   UI UPDATE FUNCTIONS
+   ============================================ */
+
+// Update weather UI with data
 function updateUI(data) {
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
     const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
+    // Update location and date/time
     document.getElementById("location").textContent = `${data.name}, ${data.sys.country}`;
     document.getElementById("date-time").textContent = `${dateStr} • ${timeStr}`;
-    document.getElementById("temp").textContent = Math.round(data.main.temp);
+    
+    // Update temperature with animation
+    animateValue("temp", parseInt(document.getElementById("temp").textContent) || 0, Math.round(data.main.temp), 500);
+    
+    // Update weather condition
     document.getElementById("condition").textContent = data.weather[0].main;
+    
+    // Update weather details
     document.getElementById("humidity").textContent = `${data.main.humidity}%`;
     document.getElementById("wind").textContent = `${Math.round(data.wind.speed * 3.6)} km/h`;
     document.getElementById("pressure").textContent = `${data.main.pressure} hPa`;
     document.getElementById("visibility").textContent = `${(data.visibility / 1000).toFixed(1)} km`;
     document.getElementById("feels-like").textContent = `${Math.round(data.main.feels_like)}°C`;
-    document.getElementById("uv-index").textContent = "N/A";
-
-    document.getElementById("current-weather").classList.remove("hidden");
+    
+    // Calculate and display dew point
+    const dewPoint = calculateDewPoint(data.main.temp, data.main.humidity);
+    document.getElementById("dew-point").textContent = `${dewPoint}°C`;
 }
 
-/* 🎨 Set Weather Icon */
+// Animate counter for temperature
+function animateValue(id, startValue, endValue, duration) {
+    const element = document.getElementById(id);
+    const range = endValue - startValue;
+    const increment = range / (duration / 16); // 60fps
+    let currentValue = startValue;
+
+    const timer = setInterval(() => {
+        currentValue += increment;
+        if ((increment > 0 && currentValue >= endValue) || (increment < 0 && currentValue <= endValue)) {
+            currentValue = endValue;
+            clearInterval(timer);
+        }
+        element.textContent = Math.round(currentValue);
+    }, 16);
+}
+
+// Calculate dew point using Magnus formula
+function calculateDewPoint(temp, humidity) {
+    const a = 17.27;
+    const b = 237.7;
+    const alpha = ((a * temp) / (b + temp)) + Math.log(humidity / 100);
+    const dewPoint = (b * alpha) / (a - alpha);
+    return Math.round(dewPoint);
+}
+
+/* ============================================
+   WEATHER ICON & CONDITIONS
+   ============================================ */
+
+// Set weather icon based on condition
 function setWeatherIcon(condition) {
     const icon = document.getElementById("weatherIcon");
     condition = condition.toLowerCase();
 
-    if (condition.includes("clear") || condition.includes("sunny")) icon.className = "wi wi-day-sunny";
-    else if (condition.includes("cloud")) icon.className = "wi wi-cloudy";
-    else if (condition.includes("rain")) icon.className = "wi wi-rain";
-    else if (condition.includes("snow")) icon.className = "wi wi-snow";
-    else if (condition.includes("thunder") || condition.includes("storm")) icon.className = "wi wi-thunderstorm";
-    else if (condition.includes("mist") || condition.includes("fog")) icon.className = "wi wi-fog";
-    else icon.className = "wi wi-day-cloudy";
+    const iconMap = {
+        "clear": "wi wi-day-sunny",
+        "sunny": "wi wi-day-sunny",
+        "cloud": "wi wi-cloudy",
+        "rain": "wi wi-rain",
+        "drizzle": "wi wi-sprinkle",
+        "snow": "wi wi-snow",
+        "thunder": "wi wi-thunderstorm",
+        "storm": "wi wi-thunderstorm",
+        "mist": "wi wi-fog",
+        "fog": "wi wi-fog",
+        "smoke": "wi wi-smoke",
+        "haze": "wi wi-day-haze",
+        "wind": "wi wi-strong-wind"
+    };
+
+    let selectedIcon = "wi wi-day-cloudy";
+    for (const [key, value] of Object.entries(iconMap)) {
+        if (condition.includes(key)) {
+            selectedIcon = value;
+            break;
+        }
+    }
+
+    icon.className = selectedIcon;
 }
 
-/* 📅 Get 5-Day Forecast */
+// Get icon class for forecast
+function getWeatherIconClass(condition) {
+    return setWeatherIcon(condition) || "wi-day-cloudy";
+}
+
+/* ============================================
+   FORECAST FUNCTIONS
+   ============================================ */
+
+// Get 5-day forecast
 function getForecast(lat, lon) {
     fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`)
         .then(res => res.json())
@@ -130,14 +234,16 @@ function getForecast(lat, lon) {
         .catch(err => console.error("Forecast error:", err));
 }
 
-/* 🎨 Render 5-Day Forecast */
+// Render forecast cards
 function renderForecast(forecastList) {
     const dailyForecasts = {};
 
+    // Group forecast data by day
     forecastList.forEach(item => {
         const date = new Date(item.dt_txt).toLocaleDateString("en-US");
         const hour = new Date(item.dt_txt).getHours();
 
+        // Use 12:00 forecast for each day, or first available
         if (hour === 12 || !dailyForecasts[date]) {
             dailyForecasts[date] = item;
         }
@@ -146,7 +252,7 @@ function renderForecast(forecastList) {
     let html = "";
     const days = Object.values(dailyForecasts).slice(0, 5);
 
-    days.forEach(day => {
+    days.forEach((day, index) => {
         const date = new Date(day.dt_txt);
         const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         const dayStr = date.toLocaleDateString("en-US", { weekday: "short" });
@@ -156,15 +262,15 @@ function renderForecast(forecastList) {
         const iconClass = getWeatherIconClass(condition);
 
         html += `
-            <div class="forecast-card">
+            <article class="forecast-card" style="animation-delay: ${index * 0.1}s;">
                 <div class="forecast-date">${dayStr}, ${dateStr}</div>
-                <i class="wi ${iconClass}" style="font-size: 40px;"></i>
+                <i class="wi ${iconClass}" aria-hidden="true"></i>
                 <div class="forecast-temps">
                     <span class="temp-max">${tempMax}°</span>
                     <span class="temp-min">${tempMin}°</span>
                 </div>
                 <div class="forecast-condition">${condition}</div>
-            </div>
+            </article>
         `;
     });
 
@@ -172,20 +278,11 @@ function renderForecast(forecastList) {
     document.getElementById("forecast-section").classList.remove("hidden");
 }
 
-/* 🎨 Get Weather Icon Class */
-function getWeatherIconClass(condition) {
-    condition = condition.toLowerCase();
-    if (condition.includes("clear") || condition.includes("sunny")) return "wi-day-sunny";
-    if (condition.includes("cloud")) return "wi-cloudy";
-    if (condition.includes("rain")) return "wi-rain";
-    if (condition.includes("snow")) return "wi-snow";
-    if (condition.includes("thunder")) return "wi-thunderstorm";
-    if (condition.includes("mist") || condition.includes("fog")) return "wi-fog";
-    return "wi-day-cloudy";
-}
+/* ============================================
+   DYNAMIC BACKGROUND SYSTEM
+   ============================================ */
 
-/* =============== DYNAMIC BACKGROUND SYSTEM =============== */
-
+// Initialize canvas
 function initializeBackground() {
     const canvas = document.getElementById("skyCanvas");
     if (canvas && !canvas.resized) {
@@ -195,6 +292,7 @@ function initializeBackground() {
     }
 }
 
+// Resize canvas to fill window
 function resizeCanvas() {
     const canvas = document.getElementById("skyCanvas");
     if (canvas) {
@@ -203,7 +301,11 @@ function resizeCanvas() {
     }
 }
 
-/* 🌙 Calculate Moon Phase */
+/* ============================================
+   MOON PHASE CALCULATIONS
+   ============================================ */
+
+// Calculate moon phase
 function getMoonPhase(date = new Date()) {
     const knownNewMoon = new Date(2000, 0, 6);
     const lunarCycle = 29.53;
@@ -212,13 +314,19 @@ function getMoonPhase(date = new Date()) {
     return phase;
 }
 
-/* 🕐 Check if it's Night */
+// Check if it's night time
 function isNight(now = new Date()) {
-    if (!sunriseTime || !sunsetTime) return now.getHours() < 6 || now.getHours() >= 18;
+    if (!sunriseTime || !sunsetTime) {
+        return now.getHours() < 6 || now.getHours() >= 18;
+    }
     return now < sunriseTime || now > sunsetTime;
 }
 
-/* 🎨 Draw Dynamic Background */
+/* ============================================
+   CANVAS DRAWING FUNCTIONS
+   ============================================ */
+
+// Draw dynamic background based on weather
 function drawDynamicBackground() {
     const canvas = document.getElementById("skyCanvas");
     if (!canvas) return;
@@ -226,11 +334,9 @@ function drawDynamicBackground() {
     const ctx = canvas.getContext("2d");
     const now = new Date();
     const night = isNight(now);
-    
-    // Get weather condition
     const weatherCondition = currentWeatherData?.weather[0].main.toLowerCase() || "clear";
     
-    // Clear canvas
+    // Clear canvas with base color
     ctx.fillStyle = night ? "#0a1428" : "#87CEEB";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
@@ -240,7 +346,7 @@ function drawDynamicBackground() {
         drawDaySky(ctx, canvas);
     }
     
-    // Draw weather effects
+    // Draw weather-specific effects
     if (weatherCondition.includes("cloud")) {
         drawClouds(ctx, canvas, night);
     }
@@ -252,7 +358,7 @@ function drawDynamicBackground() {
     }
 }
 
-/* ☀️ Draw Day Sky */
+// Draw day sky with gradient
 function drawDaySky(ctx, canvas) {
     const now = new Date();
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -262,24 +368,23 @@ function drawDaySky(ctx, canvas) {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Calculate sun position based on time
+    // Calculate and draw sun
     const sunX = canvas.width * 0.5;
     const sunY = canvas.height * 0.8 - (Math.sin((now.getHours() - 6) / 12 * Math.PI) * canvas.height * 0.4);
     
-    // Draw sun
     ctx.fillStyle = "rgba(255, 200, 0, 0.9)";
     ctx.beginPath();
     ctx.arc(sunX, sunY, 60, 0, Math.PI * 2);
     ctx.fill();
     
-    // Sun glow
+    // Sun glow effect
     ctx.fillStyle = "rgba(255, 200, 0, 0.1)";
     ctx.beginPath();
     ctx.arc(sunX, sunY, 120, 0, Math.PI * 2);
     ctx.fill();
 }
 
-/* 🌙 Draw Night Sky */
+// Draw night sky with stars and moon
 function drawNightSky(ctx, canvas) {
     const now = new Date();
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -292,18 +397,18 @@ function drawNightSky(ctx, canvas) {
     // Draw stars
     drawStars(ctx, canvas);
     
-    // Draw moon
+    // Draw moon with phase
     const moonPhase = getMoonPhase(now);
     const moonX = canvas.width * 0.85;
     const moonY = canvas.height * 0.2;
     drawMoon(ctx, moonX, moonY, moonPhase);
 }
 
-/* ⭐ Draw Stars */
+// Draw stars with twinkling effect
 function drawStars(ctx, canvas) {
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     
-    // Use a seed-based random for consistent star positions
+    // Static stars
     for (let i = 0; i < 200; i++) {
         const seed = i * 12321 + 12345;
         const x = (seed * 73856093 ^ (seed >> 16)) % canvas.width;
@@ -315,7 +420,7 @@ function drawStars(ctx, canvas) {
         ctx.fill();
     }
     
-    // Add twinkling effect
+    // Twinkling stars
     ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
     for (let i = 0; i < 50; i++) {
         const seed = i * 54321 + 98765;
@@ -330,7 +435,7 @@ function drawStars(ctx, canvas) {
     }
 }
 
-/* 🌕 Draw Moon with Phases */
+// Draw moon with phase variations
 function drawMoon(ctx, x, y, phase) {
     const radius = 50;
     
@@ -340,7 +445,7 @@ function drawMoon(ctx, x, y, phase) {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
     
-    // Moon shadow for phases
+    // Moon shadow for phase display
     if (phase > 0.25 && phase < 0.75) {
         const shadowX = phase < 0.5 ? x + (0.5 - phase) * 4 * radius : x - (phase - 0.5) * 4 * radius;
         ctx.fillStyle = "#001a4d";
@@ -357,7 +462,7 @@ function drawMoon(ctx, x, y, phase) {
     ctx.stroke();
 }
 
-/* ☁️ Draw Clouds */
+// Draw animated clouds
 function drawClouds(ctx, canvas, night) {
     ctx.fillStyle = night ? "rgba(100, 100, 120, 0.6)" : "rgba(255, 255, 255, 0.7)";
     
@@ -368,6 +473,7 @@ function drawClouds(ctx, canvas, night) {
     }
 }
 
+// Draw cloud shape
 function drawCloud(ctx, x, y, size) {
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
@@ -376,7 +482,7 @@ function drawCloud(ctx, x, y, size) {
     ctx.fill();
 }
 
-/* 🌧️ Draw Rain */
+// Draw rain drops
 function drawRain(ctx, canvas) {
     ctx.strokeStyle = "rgba(200, 210, 220, 0.6)";
     ctx.lineWidth = 1;
@@ -394,7 +500,7 @@ function drawRain(ctx, canvas) {
     }
 }
 
-/* ❄️ Draw Snow */
+// Draw snow flakes
 function drawSnow(ctx, canvas) {
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     
@@ -410,56 +516,129 @@ function drawSnow(ctx, canvas) {
     }
 }
 
-/* 🌓 Update Dynamic Background */
+/* ============================================
+   THEME SYSTEM
+   ============================================ */
+
+// Update dynamic background and theme
 function updateDynamicBackground() {
     drawDynamicBackground();
-    applyThemeBasedOnTime();
+    applyAdaptiveTheme();
 }
 
-/* 🌓 Apply Theme Based on Time */
-function applyThemeBasedOnTime() {
-    const night = isNight();
-    if (night && !document.body.classList.contains("dark")) {
-        document.body.classList.add("dark");
-    } else if (!night && document.body.classList.contains("dark")) {
-        document.body.classList.remove("dark");
+// Calculate brightness based on weather
+function calculateBrightness() {
+    const now = new Date();
+    const weatherCondition = currentWeatherData?.weather[0].main.toLowerCase() || "clear";
+    const isDay = !isNight(now);
+    
+    let brightness = isDay ? 0.8 : 0.2;
+    
+    if (weatherCondition.includes("clear") || weatherCondition.includes("sunny")) {
+        brightness += isDay ? 0.15 : 0.05;
+    } else if (weatherCondition.includes("cloud")) {
+        brightness += isDay ? 0.05 : 0;
+        brightness -= 0.1;
+    } else if (weatherCondition.includes("rain") || weatherCondition.includes("storm")) {
+        brightness -= 0.15;
+    } else if (weatherCondition.includes("snow") || weatherCondition.includes("fog")) {
+        brightness += isDay ? 0.1 : 0;
+    }
+    
+    return Math.max(0.1, Math.min(0.95, brightness));
+}
+
+// Determine if it's day mode
+function isDayMode() {
+    const now = new Date();
+    const brightness = calculateBrightness();
+    
+    if (sunriseTime && sunsetTime) {
+        const isDay = now >= sunriseTime && now < sunsetTime;
+        return isDay && brightness > 0.5;
+    }
+    
+    const hour = now.getHours();
+    return (hour >= 6 && hour < 18) && brightness > 0.5;
+}
+
+// Apply adaptive theme based on time and weather
+function applyAdaptiveTheme() {
+    const body = document.body;
+    const isDayTheme = isDayMode();
+    
+    // Remove theme classes
+    body.classList.remove("day-mode", "night-mode", "dark");
+    
+    // Check for manual dark mode
+    const hasManualDarkMode = localStorage.getItem("darkMode") === "true";
+    
+    if (hasManualDarkMode) {
+        body.classList.add("dark", "night-mode");
+    } else if (isDayTheme) {
+        body.classList.add("day-mode");
+    } else {
+        body.classList.add("night-mode");
     }
 }
 
-/* 🔄 Update Background Loop */
+// Toggle dark mode manually
+function toggleDark() {
+    const isDark = document.body.classList.contains("dark");
+    const body = document.body;
+    
+    body.classList.remove("day-mode", "night-mode", "dark");
+    
+    if (!isDark) {
+        // Enable dark mode
+        body.classList.add("dark", "night-mode");
+        localStorage.setItem("darkMode", "true");
+    } else {
+        // Disable dark mode and use automatic
+        localStorage.setItem("darkMode", "false");
+        applyAdaptiveTheme();
+    }
+}
+
+// Animation loop for background
 function updateBackgroundLoop() {
     updateDynamicBackground();
     requestAnimationFrame(updateBackgroundLoop);
 }
 
-/* 🌓 Toggle Dark Mode */
-function toggleDark() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
-}
+/* ============================================
+   UI HELPER FUNCTIONS
+   ============================================ */
 
-// Load dark mode preference
-if (localStorage.getItem("darkMode") === "true") {
-    document.body.classList.add("dark");
-}
-
-/* 🔄 Loader */
+// Show/hide loader
 function showLoader(show) {
-    document.getElementById("loader").classList.toggle("hidden", !show);
+    const loader = document.getElementById("loader");
+    if (show) {
+        loader.classList.remove("hidden");
+    } else {
+        loader.classList.add("hidden");
+    }
 }
 
-/* ❌ Error Message */
+// Show error message
 function showError(message) {
     const errorEl = document.getElementById("error");
     errorEl.textContent = message;
     errorEl.classList.remove("hidden");
 }
 
+// Clear error message
 function clearError() {
     document.getElementById("error").classList.add("hidden");
 }
 
-/* ⌨️ Enter Key on Search */
+/* ============================================
+   EVENT LISTENERS
+   ============================================ */
+
+// Allow Enter key to search
 document.getElementById("city").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") getWeather();
+    if (e.key === "Enter") {
+        getWeather();
+    }
 });
